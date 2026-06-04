@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhoneView — Viewer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&display=swap');
+  :root {
+    --bg: #060a0d;
+    --panel: #0c1218;
+    --border: #162030;
+    --accent: #00e5ff;
+    --accent2: #ff3c6e;
+    --accent3: #39ff7a;
+    --text: #b8cdd8;
+    --dim: #3a5060;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(to bottom, transparent 0px, transparent 3px, rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px);
+    pointer-events: none; z-index: 999;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(12,18,24,0.97);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1rem; letter-spacing: 0.15em; color: var(--accent); text-shadow: 0 0 12px rgba(0,229,255,0.4); }
+  .logo span { color: var(--accent2); }
+  .badge { font-size: 0.65rem; letter-spacing: 0.18em; padding: 3px 8px; border-radius: 3px; border: 1px solid var(--dim); color: var(--dim); }
+  .badge.live { border-color: var(--accent3); color: var(--accent3); animation: blink 1.5s infinite; }
+  .badge.waiting { border-color: #ffaa00; color: #ffaa00; }
+  .badge.off { border-color: var(--accent2); color: var(--accent2); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 14px;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.3;
+  }
+  .card-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 13px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.65rem; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase;
+  }
+
+  /* Camera */
+  .cam-card { grid-column: 1 / -1; }
+  #remoteImg {
+    width: 100%; max-height: 300px; object-fit: cover;
+    display: block; background: #000;
+  }
+  .cam-off {
+    width: 100%; height: 220px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    background: radial-gradient(ellipse, #0d1a22, #060a0d);
+    font-size: 0.7rem; color: var(--dim);
+  }
+  .cam-off .ico { font-size: 2.5rem; opacity: 0.25; }
+
+  /* Map */
+  #mapWrap { height: 230px; position: relative; background: #08111a; }
+  #mapFrame { width: 100%; height: 100%; border: none; display: none; }
+  .map-off {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    font-size: 0.7rem; color: var(--dim);
+  }
+  .map-off .ico { font-size: 2.2rem; opacity: 0.25; }
+  .loc-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px 13px;
+  }
+  .loc-item { font-size: 0.65rem; color: var(--dim); }
+  .loc-item span { display: block; font-size: 0.75rem; color: var(--accent); }
+
+  /* Battery */
+  .bat-body { padding: 14px 13px 6px; }
+  .bat-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bat-shell {
+    flex: 1; height: 20px; border: 1.5px solid var(--dim); border-radius: 4px; position: relative; overflow: visible;
+  }
+  .bat-shell::after {
+    content: ''; position: absolute; right: -5px; top: 50%; transform: translateY(-50%);
+    width: 4px; height: 9px; background: var(--dim); border-radius: 0 2px 2px 0;
+  }
+  .bat-fill { height: 100%; border-radius: 2px; transition: width 0.6s, background 0.4s; }
+  .bat-pct { font-size: 1rem; color: var(--accent3); min-width: 42px; text-align: right; }
+  .bat-status { font-size: 0.68rem; color: var(--dim); padding: 0 13px 10px; }
+
+  /* Device */
+  .dev-rows { padding: 4px 13px 12px; display: flex; flex-direction: column; gap: 7px; }
+  .dev-row { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--dim); border-bottom: 1px solid rgba(22,32,48,0.7); padding-bottom: 5px; }
+  .dev-row .v { color: var(--text); text-align: right; max-width: 55%; word-break: break-all; }
+
+  /* Connect panel */
+  .connect-card { grid-column: 1 / -1; padding: 18px; }
+  .connect-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.9rem; color: var(--accent); margin-bottom: 14px; letter-spacing: 0.1em; }
+  .url-box {
+    background: rgba(0,229,255,0.04); border: 1px solid rgba(0,229,255,0.2);
+    border-radius: 7px; padding: 12px 14px; font-size: 0.8rem; color: var(--accent);
+    word-break: break-all; letter-spacing: 0.05em; margin-bottom: 10px;
+  }
+  .url-label { font-size: 0.62rem; color: var(--dim); letter-spacing: 0.15em; margin-bottom: 6px; }
+  .copy-btn {
+    background: transparent; border: 1px solid var(--accent); color: var(--accent);
+    font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; letter-spacing: 0.12em;
+    padding: 7px 16px; border-radius: 5px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+  }
+  .copy-btn:hover { background: rgba(0,229,255,0.08); }
+  .hint { font-size: 0.65rem; color: var(--dim); margin-top: 10px; line-height: 1.6; }
+
+  @media (max-width: 500px) {
+    .grid { grid-template-columns: 1fr; }
+    .cam-card, .connect-card { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">PHONE<span>VIEW</span> <span style="font-size:0.6rem;color:var(--dim);font-family:'Share Tech Mono'">VIEWER</span></div>
+  <div class="badge off" id="statusBadge">DISCONNECTED</div>
+</header>
+
+<div class="grid">
+
+  <!-- Connect instructions -->
+  <div class="card connect-card" id="connectCard">
+    <div class="connect-title">▸ SEND THIS LINK TO YOUR OTHER PHONE</div>
+    <div class="url-label">SENDER LINK (open on other phone):</div>
+    <div class="url-box" id="senderUrl">Loading...</div>
+    <button class="copy-btn" onclick="copyLink()">⎘ COPY LINK</button>
+    <div class="hint">
+      1. Copy the link above<br>
+      2. Send it to your other phone via WhatsApp or SMS<br>
+      3. Open it on the other phone and tap START<br>
+      4. This page will update automatically
+    </div>
+  </div>
+
+  <!-- Camera -->
+  <div class="card cam-card">
+    <div class="card-header">📷 LIVE CAMERA</div>
+    <div id="camArea">
+      <div class="cam-off" id="camOff"><div class="ico">📷</div>Waiting for other phone...</div>
+      <img id="remoteImg" style="display:none;" alt="Remote camera">
+    </div>
+  </div>
+
+  <!-- Location -->
+  <div class="card">
+    <div class="card-header">📍 LOCATION</div>
+    <div id="mapWrap">
+      <div class="map-off" id="mapOff"><div class="ico">📍</div>No location yet</div>
+      <iframe id="mapFrame"></iframe>
+    </div>
+    <div class="loc-grid">
+      <div class="loc-item">LAT<span id="vLat">—</span></div>
+      <div class="loc-item">LNG<span id="vLng">—</span></div>
+      <div class="loc-item">ACCURACY<span id="vAcc">—</span></div>
+      <div class="loc-item">UPDATED<span id="vTime">—</span></div>
+    </div>
+  </div>
+
+  <!-- Battery & Device -->
+  <div class="card">
+    <div class="card-header">🔋 DEVICE</div>
+    <div class="bat-body">
+      <div class="bat-row">
+        <div class="bat-shell"><div class="bat-fill" id="vBatFill" style="width:0%"></div></div>
+        <div class="bat-pct" id="vBatPct">—%</div>
+      </div>
+    </div>
+    <div class="bat-status" id="vBatStatus">Waiting...</div>
+    <div class="dev-rows">
+      <div class="dev-row"><span>OS</span><span class="v" id="vOs">—</span></div>
+      <div class="dev-row"><span>BROWSER</span><span class="v" id="vBr">—</span></div>
+      <div class="dev-row"><span>SCREEN</span><span class="v" id="vRes">—</span></div>
+      <div class="dev-row"><span>NETWORK</span><span class="v" id="vNet">—</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const host = location.host;
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${proto}//${host}`;
+  const senderLink = `${location.protocol}//${host}/phone.html`;
+
+  document.getElementById('senderUrl').textContent = senderLink;
+
+  function copyLink() {
+    navigator.clipboard.writeText(senderLink).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '✓ COPIED!';
+      setTimeout(() => btn.textContent = '⎘ COPY LINK', 2000);
+    });
+  }
+
+  let ws;
+  function connect() {
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'register', role: 'viewer' }));
+    };
+
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data.type === 'sender_connected') {
+        setStatus('live', 'LIVE');
+      }
+      if (data.type === 'sender_disconnected') {
+        setStatus('off', 'DISCONNECTED');
+      }
+      if (data.type === 'camera_frame') {
+        const img = document.getElementById('remoteImg');
+        img.src = data.frame;
+        img.style.display = 'block';
+        document.getElementById('camOff').style.display = 'none';
+      }
+      if (data.type === 'location') {
+        const lat = parseFloat(data.lat).toFixed(6);
+        const lng = parseFloat(data.lng).toFixed(6);
+        document.getElementById('vLat').textContent = lat;
+        document.getElementById('vLng').textContent = lng;
+        document.getElementById('vAcc').textContent = data.accuracy + 'm';
+        document.getElementById('vTime').textContent = new Date().toLocaleTimeString();
+        // Map
+        const frame = document.getElementById('mapFrame');
+        frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${lng-0.005},${lat-0.005},${parseFloat(lng)+0.005},${parseFloat(lat)+0.005}&layer=mapnik&marker=${lat},${lng}`;
+        frame.style.display = 'block';
+        document.getElementById('mapOff').style.display = 'none';
+      }
+      if (data.type === 'battery') {
+        const pct = data.level;
+        document.getElementById('vBatPct').textContent = pct + '%';
+        const fill = document.getElementById('vBatFill');
+        fill.style.width = pct + '%';
+        fill.style.background = pct > 50 ? 'var(--accent3)' : pct > 20 ? '#ffdd44' : 'var(--accent2)';
+        document.getElementById('vBatStatus').textContent = data.charging ? '⚡ CHARGING' : '🔋 ON BATTERY';
+      }
+      if (data.type === 'device') {
+        document.getElementById('vOs').textContent = data.os || '—';
+        document.getElementById('vBr').textContent = data.browser || '—';
+        document.getElementById('vRes').textContent = data.screen || '—';
+        document.getElementById('vNet').textContent = data.network || '—';
+      }
+    };
+
+    ws.onclose = () => {
+      setStatus('waiting', 'RECONNECTING...');
+      setTimeout(connect, 3000);
+    };
+
+    ws.onerror = () => ws.close();
+  }
+
+  function setStatus(cls, txt) {
+    const b = document.getElementById('statusBadge');
+    b.className = 'badge ' + cls;
+    b.textContent = txt;
+  }
+
+  setStatus('waiting', 'CONNECTING...');
+  connect();
+</script>
+</body>
+</html>
